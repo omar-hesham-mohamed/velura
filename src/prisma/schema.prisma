@@ -30,6 +30,7 @@ model Product {
   price       Float
   stock       Int
   createdAt   DateTime  @default(now())
+  imageUrl    String?   // optional image link
 
   orderItems  OrderItem[]
 }
