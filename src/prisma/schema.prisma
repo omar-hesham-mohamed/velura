@@ -36,14 +36,15 @@ model Product {
 }
 
 model Order {
-  id         Int        @id @default(autoincrement())
-  userId     Int
-  status     String     @default("PENDING")
-  createdAt  DateTime   @default(now())
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  status      String     @default("PENDING")
+  totalAmount Float
+  createdAt   DateTime   @default(now())
 
-  user       User       @relation(fields: [userId], references: [id])
-  orderItems OrderItem[]
-  payment    Payment?
+  user        User       @relation(fields: [userId], references: [id])
+  orderItems  OrderItem[]
+  payment     Payment?
 }
 
 model OrderItem {
