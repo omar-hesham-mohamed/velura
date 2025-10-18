@@ -20,7 +20,7 @@ export class OrdersService {
           if (!product) throw new Error(`Product with ID ${item.productId} not found`);
     
           const unitPrice = product.price;
-          amount += unitPrice * item.quantity;
+          amount += Number(unitPrice) * item.quantity;
     
           return {
             productId: item.productId,
@@ -43,29 +43,60 @@ export class OrdersService {
           },
         });
 
+        // Format billing data for PayMob
         const billingData = {
-          first_name: 'Omar',
-          last_name: 'Hesham',
-          email: 'omar@example.com',
-          phone_number: '01000000000',
-          street: 'Test St.',
-          city: 'Alexandria',
-          country: 'EG',
+          first_name: data.billingData.firstName,
+          last_name: data.billingData.lastName,
+          email: data.billingData.email,
+          phone_number: data.billingData.phoneNumber,
+          street: data.billingData.street || '',
+          city: data.billingData.city || '',
+          country: data.billingData.country || 'EG',
         };
 
-        const authToken = await this.paymobService.authenticate();
-        const orderId = await this.paymobService.createOrder(authToken, amount * 100);
-        const paymentKey = await this.paymobService.generatePaymentKey(
-          authToken,
-          orderId,
-          amount * 100,
-          billingData,
-        );
+        try {
+          const authToken = await this.paymobService.authenticate();
+          const paymobOrderId = await this.paymobService.createOrder(authToken, amount * 100);
+          const paymentKey = await this.paymobService.generatePaymentKey(
+            authToken,
+            paymobOrderId,
+            amount * 100,
+            billingData,
+          );
 
-        const paymentUrl = this.paymobService.getPaymentUrl(paymentKey);
+          // Generate wallet payment (default to Vodafone Cash)
+          const walletPayment = await this.paymobService.generateWalletPayment(
+            paymentKey,
+            data.walletType || 'vodafone',
+          );
 
-        // Return both order info + Paymob payment URL
-        return { order, paymentUrl };
+          // Update order with PayMob order ID for tracking
+          await this.prisma.order.update({
+            where: { id: order.id },
+            data: { 
+              // You might want to add a paymobOrderId field to your schema
+              // paymobOrderId: paymobOrderId.toString()
+            }
+          });
+
+          // Return order info + wallet payment details
+          return { 
+            order, 
+            paymobOrderId,
+            paymentKey,
+            walletUrl: walletPayment.walletUrl,
+            referenceNumber: walletPayment.referenceNumber,
+            walletType: data.walletType || 'vodafone'
+          };
+        } catch (error) {
+          // If payment setup fails, mark order as failed
+          await this.prisma.order.update({
+            where: { id: order.id },
+            data: { status: 'FAILED' }
+          });
+          
+          throw new Error(`Payment setup failed: ${error.message}`);
+        }
       }
 
       async findAll() {

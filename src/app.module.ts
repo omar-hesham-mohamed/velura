@@ -1,14 +1,17 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
-// import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
+import { PaymobModule } from './paymob/paymob.module';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
     PrismaModule,
     UsersModule,
-    // ProductsModule,
-    // later: OrdersModule, PaymentsModule, etc.
+    OrdersModule,
+    PaymobModule,
+    ProductsModule,
   ],
 })
 

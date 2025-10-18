@@ -20,7 +20,7 @@ export class PaymentService {
       data: {
         orderId: data.orderId,
         amount: data.amount,
-        status: data.status,
+        status: data.status as any,
       },
     });
   }

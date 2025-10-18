@@ -19,6 +19,7 @@ model User {
   password  String
   name      String
   createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   orders    Order[]
 }
@@ -27,9 +28,10 @@ model Product {
   id          Int       @id @default(autoincrement())
   name        String
   description String?
-  price       Float
-  stock       Int
+  price       Decimal   @db.Decimal(10, 2)
+  stock       Int       @default(0)
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   imageUrl    String?   // optional image link
 
   orderItems  OrderItem[]
@@ -38,32 +40,48 @@ model Product {
 model Order {
   id          Int        @id @default(autoincrement())
   userId      Int
-  status      String     @default("PENDING")
-  totalAmount Float
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal    @db.Decimal(10, 2)
   createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   user        User       @relation(fields: [userId], references: [id])
   orderItems  OrderItem[]
   payment     Payment?
 }
 
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
 model OrderItem {
   id        Int     @id @default(autoincrement())
   orderId   Int
   productId Int
-  quantity  Int
-  unitPrice Float
+  quantity  Int     @default(1)
+  unitPrice Decimal @db.Decimal(10, 2)
 
-  order     Order   @relation(fields: [orderId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id])
 }
 
 model Payment {
-  id        Int      @id @default(autoincrement())
-  orderId   Int      @unique
-  amount    Float
-  status    String
-  createdAt DateTime @default(now())
+  id        Int           @id @default(autoincrement())
+  orderId   Int           @unique
+  amount    Decimal       @db.Decimal(10, 2)
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
-  order     Order    @relation(fields: [orderId], references: [id])
+  order     Order         @relation(fields: [orderId], references: [id])
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
 }

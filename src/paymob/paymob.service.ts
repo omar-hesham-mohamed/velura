@@ -7,16 +7,14 @@ import { firstValueFrom } from 'rxjs';
 export class PaymobService {
   private readonly baseUrl = 'https://accept.paymob.com/api';
   private readonly apiKey: string;
-  private readonly integrationId: number;
-  private readonly iframeId: number;
+  private readonly walletIntegrationId: number;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
     this.apiKey = this.configService.get<string>('PAYMOB_API_KEY')!;
-    this.integrationId = Number(this.configService.get<number>('PAYMOB_INTEGRATION_ID'));
-    this.iframeId = Number(this.configService.get<number>('PAYMOB_IFRAME_ID'));
+    this.walletIntegrationId = Number(this.configService.get<number>('PAYMOB_WALLET_INTEGRATION_ID'));
   }
 
   /** Step 1: Authenticate and get API token */
@@ -43,7 +41,7 @@ export class PaymobService {
     return response.data.id;
   }
 
-  /** Step 3: Generate a payment key for the order */
+  /** Step 3: Generate a payment key for wallet payments */
   async generatePaymentKey(
     token: string,
     orderId: number,
@@ -58,14 +56,43 @@ export class PaymobService {
         order_id: orderId,
         billing_data: billingData,
         currency: 'EGP',
-        integration_id: this.integrationId,
+        integration_id: this.walletIntegrationId,
       }),
     );
     return response.data.token;
   }
 
-  /** Step 4: Build the payment URL for frontend redirection */
-  getPaymentUrl(paymentToken: string): string {
-    return `https://accept.paymob.com/api/acceptance/iframes/${this.iframeId}?payment_token=${paymentToken}`;
+  /** Step 4: Generate wallet payment URL */
+  async generateWalletPayment(
+    paymentToken: string,
+    walletType: 'vodafone' | 'orange' | 'etisalat' = 'vodafone',
+  ): Promise<{ walletUrl: string; referenceNumber: string }> {
+    // For wallet payments, generate the wallet-specific URL
+    const walletUrl = this.getWalletUrl(paymentToken, walletType);
+
+    // Generate a reference number (you can use timestamp or UUID)
+    const referenceNumber = `WALLET_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    return {
+      walletUrl,
+      referenceNumber,
+    };
+  }
+
+  /** Get wallet-specific URL */
+  private getWalletUrl(paymentToken: string, walletType: string): string {
+    // For wallet payments, redirect to PayMob's wallet payment page
+    const baseUrl = `https://accept.paymob.com/api/acceptance/iframes/`;
+    
+    switch (walletType) {
+      case 'vodafone':
+        return `${baseUrl}?payment_token=${paymentToken}&wallet=vodafone`;
+      case 'orange':
+        return `${baseUrl}?payment_token=${paymentToken}&wallet=orange`;
+      case 'etisalat':
+        return `${baseUrl}?payment_token=${paymentToken}&wallet=etisalat`;
+      default:
+        return `${baseUrl}?payment_token=${paymentToken}`;
+    }
   }
 }

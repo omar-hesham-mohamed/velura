@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { PaymobService } from './paymob.service';
 import { PaymobController } from './paymob.controller';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Module({
   imports: [
@@ -10,7 +11,7 @@ import { PaymobController } from './paymob.controller';
     ConfigModule.forRoot({ isGlobal: true }), // so process.env works everywhere
   ],
   controllers: [PaymobController],
-  providers: [PaymobService],
+  providers: [PaymobService, PrismaService],
   exports: [PaymobService],
 })
 export class PaymobModule {}

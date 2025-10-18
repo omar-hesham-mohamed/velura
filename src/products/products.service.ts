@@ -1,11 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { INJECTABLE_WATERMARK } from '@nestjs/common/constants';
 
 @Injectable()
-export class ProductService{
+export class ProductsService{
     constructor (private prisma: PrismaService) {}
     
     async createProduct(data: CreateProductDto){
@@ -15,9 +14,15 @@ export class ProductService{
     }
 
     async getProductById(id: number){
-        return this.prisma.product.findUnique({
+        const product = await this.prisma.product.findUnique({
             where: { id },
-    });
+        });
+        
+        if (!product) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+        
+        return product;
     }
 
     async getAllProducts(){
@@ -25,6 +30,9 @@ export class ProductService{
     }
 
     async updateProduct(id: number, data: UpdateProductDto){
+        // Check if product exists first
+        await this.getProductById(id);
+        
         return this.prisma.product.update({
             where: { id },
             data,
@@ -32,6 +40,9 @@ export class ProductService{
     }
 
     async deleteProduct(id: number){
+        // Check if product exists first
+        await this.getProductById(id);
+        
         return this.prisma.product.delete({
             where: { id },
         });
