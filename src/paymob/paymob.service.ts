@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class PaymobService {
-  private readonly baseUrl = 'https://accept.paymob.com/api';
+  private readonly baseUrl = 'https://accept.paymobsolutions.com/api/'; // change back to live
   private readonly apiKey: string;
-  private readonly walletIntegrationId: number;
+  private readonly walletIntegrationId: number; 
+  private readonly hmacSecret: string;
 
   constructor(
     private readonly httpService: HttpService,
@@ -15,6 +17,7 @@ export class PaymobService {
   ) {
     this.apiKey = this.configService.get<string>('PAYMOB_API_KEY')!;
     this.walletIntegrationId = Number(this.configService.get<number>('PAYMOB_WALLET_INTEGRATION_ID'));
+    this.hmacSecret = this.configService.get<string>('PAYMOB_HMAC_SECRET')!;
   }
 
   /** Step 1: Authenticate and get API token */
@@ -51,7 +54,7 @@ export class PaymobService {
     const response = await firstValueFrom(
       this.httpService.post(`${this.baseUrl}/acceptance/payment_keys`, {
         auth_token: token,
-        amount_cents: amountCents,
+        amount_cents: amountCents.toString(),
         expiration: 3600,
         order_id: orderId,
         billing_data: billingData,
@@ -93,6 +96,29 @@ export class PaymobService {
         return `${baseUrl}?payment_token=${paymentToken}&wallet=etisalat`;
       default:
         return `${baseUrl}?payment_token=${paymentToken}`;
+    }
+  }
+
+  /** Verify HMAC signature for webhook security */
+  verifyHmacSignature(data: any, signature: string): boolean {
+    if (!this.hmacSecret || !signature) {
+      return false;
+    }
+
+    try {
+      // Create HMAC hash using the secret and request body
+      const hmac = crypto.createHmac('sha256', this.hmacSecret);
+      hmac.update(JSON.stringify(data));
+      const calculatedSignature = hmac.digest('hex');
+      
+      // Compare signatures using crypto.timingSafeEqual to prevent timing attacks
+      const providedSignature = Buffer.from(signature, 'hex');
+      const expectedSignature = Buffer.from(calculatedSignature, 'hex');
+      
+      return crypto.timingSafeEqual(providedSignature, expectedSignature);
+    } catch (error) {
+      console.error('HMAC verification error:', error);
+      return false;
     }
   }
 }

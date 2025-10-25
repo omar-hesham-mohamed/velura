@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -6,9 +6,16 @@ import { PaymobService } from '../paymob/paymob.service';
 
 @Injectable()
 export class OrdersService {
-    constructor(private prisma: PrismaService, private paymobService: PaymobService,) {}
+    private readonly logger = new Logger(OrdersService.name);
+
+    constructor(
+        private prisma: PrismaService, 
+        private paymobService: PaymobService
+    ) {}
     
     async create(data: CreateOrderDto) {
+        this.logger.log(`Creating order for user ${data.userId} with ${data.items.length} items`);
+
         // Calculate total amount based on items
         const products = await this.prisma.product.findMany({
           where: { id: { in: data.items.map((item) => item.productId) } },
@@ -28,6 +35,7 @@ export class OrdersService {
             unitPrice,
           };
         });
+
     
         const order = await this.prisma.order.create({
           data: {
@@ -43,8 +51,15 @@ export class OrdersService {
           },
         });
 
+
         // Format billing data for PayMob
         const billingData = {
+          apartment: 'NA',
+          floor: 'NA',
+          building: 'NA',
+          shipping_method: 'PKG',
+          postal_code: 'NA',
+          state: 'NA',
           first_name: data.billingData.firstName,
           last_name: data.billingData.lastName,
           email: data.billingData.email,
@@ -54,21 +69,27 @@ export class OrdersService {
           country: data.billingData.country || 'EG',
         };
 
+
         try {
+          
           const authToken = await this.paymobService.authenticate();
+          
           const paymobOrderId = await this.paymobService.createOrder(authToken, amount * 100);
+          
           const paymentKey = await this.paymobService.generatePaymentKey(
             authToken,
             paymobOrderId,
             amount * 100,
             billingData,
           );
+          
 
           // Generate wallet payment (default to Vodafone Cash)
           const walletPayment = await this.paymobService.generateWalletPayment(
             paymentKey,
             data.walletType || 'vodafone',
           );
+
 
           // Update order with PayMob order ID for tracking
           await this.prisma.order.update({

@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, MinLength, IsIn } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -10,4 +10,7 @@ export class CreateUserDto {
 
   @IsNotEmpty()
   name: string;
+
+  @IsIn(['LOCAL', 'GOOGLE', 'FACEBOOK'])
+  provider?: 'LOCAL' | 'GOOGLE' | 'FACEBOOK';
 }

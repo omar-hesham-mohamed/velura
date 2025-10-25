@@ -1,7 +1,6 @@
 import { Controller, Post, Body, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymobService } from './paymob.service';
-import * as crypto from 'crypto';
 
 @Controller('paymob')
 export class PaymobController {
@@ -17,7 +16,7 @@ export class PaymobController {
     try {
       // Verify HMAC signature for security
       const hmac = req.headers['x-paymob-signature'] as string;
-      if (!this.verifyHmac(data, hmac)) {
+      if (!this.paymobService.verifyHmacSignature(data, hmac)) {
         throw new HttpException('Invalid signature', HttpStatus.UNAUTHORIZED);
       }
 
@@ -48,9 +47,4 @@ export class PaymobController {
     }
   }
 
-  private verifyHmac(data: any, signature: string): boolean {
-    // You need to implement HMAC verification based on PayMob's documentation
-    // This is a placeholder - check PayMob docs for the exact implementation
-    return true; // Replace with actual HMAC verification
-  }
 }
