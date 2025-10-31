@@ -65,4 +65,12 @@ export class AuthController {
       user: req.user, 
     };
   }
+
+  @UseGuards(JwtRefreshGuard)
+  @Post('logout')
+  async logout(@Req() req) {
+    const userId = req.user['sub'];
+    await this.authService.logout(userId);
+    return { message: 'Logged out successfully' };
+  }
 }

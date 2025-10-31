@@ -75,4 +75,12 @@ export class UsersService {
       },
     });
   }
+
+  // Link a provider (provider + providerId) to an existing user
+  async linkProvider(userId: number, provider: Provider, providerId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { provider, providerId: String(providerId) },
+    });
+  }
 }

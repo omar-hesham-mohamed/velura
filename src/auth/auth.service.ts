@@ -1,4 +1,3 @@
-// src/auth/auth.service.ts
 import {
     Injectable,
     UnauthorizedException,
@@ -24,10 +23,9 @@ import {
         throw new BadRequestException('Email already in use');
       }
   
-      const hashedPassword = await bcrypt.hash(password, 12);
       const user = await this.usersService.createUser({
         email,
-        password: hashedPassword,
+        password,
         name,
         provider: 'LOCAL',
       });
@@ -109,7 +107,17 @@ import {
         user = await this.usersService.createOAuthUser(oauthUser);
       }
 
-      return this.generateTokens(user.id, user.email);
+      return this.generateTokens(String(user.id), user.email);
+    }
+
+    async logout(userId: number) {
+      const user = await this.usersService.getUserById(userId);
+      if (!user) throw new UnauthorizedException('User not found');
+
+      // If later you store refresh tokens in DB, you'd nullify them here
+      // e.g., await this.usersService.update(userId, { refreshToken: null });
+
+      return { message: 'Logged out successfully' };
     }
   }
   
