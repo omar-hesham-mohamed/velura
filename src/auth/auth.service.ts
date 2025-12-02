@@ -4,7 +4,8 @@ import {
     BadRequestException,
   } from '@nestjs/common';
   import { JwtService } from '@nestjs/jwt';
-  import * as bcrypt from 'bcrypt';
+  import * as bcrypt from 'bcryptjs';
+  import { ConfigService } from '@nestjs/config';
   import { UsersService } from '../users/users.service';
   
   @Injectable()
@@ -12,6 +13,7 @@ import {
     constructor(
       private readonly usersService: UsersService,
       private readonly jwtService: JwtService,
+      private readonly config: ConfigService,
     ) {}
   
     /**
@@ -67,15 +69,25 @@ import {
     async generateTokens(userId: string, email: string) {
       const payload = { sub: userId, email } as const;
 
+      // sign access token using JwtModule config (no explicit secret required for access if configured)
       const accessToken = await this.jwtService.signAsync<{ sub: string; email: string }>(payload, {
-        secret: process.env.JWT_ACCESS_SECRET,
-        expiresIn: Number(process.env.JWT_ACCESS_EXPIRES_IN) || 900, // 15 mins
+        expiresIn: (this.config.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m') as unknown as any,
       });
 
+      // sign refresh token using refresh secret (JwtModule typically configured for access token)
       const refreshToken = await this.jwtService.signAsync<{ sub: string; email: string }>(payload, {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: Number(process.env.JWT_REFRESH_EXPIRES_IN) || 604800, // 7 days
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: (this.config.get<string>('JWT_REFRESH_EXPIRES_IN')) as unknown as any,
       });
+
+      // hash and persist refresh token (rotate / single token per user)
+      const hashed = await bcrypt.hash(refreshToken, 12);
+
+      // compute expiresAt from the expiresIn value
+      const expiresSeconds = Number(this.config.get<string>('JWT_REFRESH_EXPIRES_IN'));
+      const expiresAt = new Date(Date.now() + expiresSeconds * 1000);
+
+      await this.usersService.setCurrentRefreshToken(hashed, Number(userId), expiresAt);
 
       return { accessToken, refreshToken };
     }
@@ -86,10 +98,31 @@ import {
     async refreshTokens(token: string) {
       try {
         const payload = await this.jwtService.verifyAsync(token, {
-          secret: process.env.JWT_REFRESH_SECRET,
+          secret: this.config.get<string>('JWT_REFRESH_SECRET'),
         });
-        const user = await this.usersService.getUserById(payload.sub);
+
+        const userId = Number((payload as any).sub);
+        const user = await this.usersService.getUserById(userId);
         if (!user) throw new UnauthorizedException();
+
+        // compare provided token with stored hashed tokens
+        const storedTokens = await this.usersService.findRefreshTokensByUser(userId);
+        if (!storedTokens || storedTokens.length === 0) throw new UnauthorizedException();
+
+        let match = false;
+        for (const row of storedTokens) {
+          // row.token stores the hashed token
+          // bcrypt.compare handles plain vs hash
+          // eslint-disable-next-line no-await-in-loop
+          if (await bcrypt.compare(token, row.token)) {
+            match = true;
+            break;
+          }
+        }
+
+        if (!match) throw new UnauthorizedException();
+
+        // rotate: generate fresh tokens (this will replace stored hashed token)
         const tokens = await this.generateTokens(String(user.id), user.email);
         return { user, ...tokens };
       } catch (err) {
@@ -114,8 +147,8 @@ import {
       const user = await this.usersService.getUserById(userId);
       if (!user) throw new UnauthorizedException('User not found');
 
-      // If later you store refresh tokens in DB, you'd nullify them here
-      // e.g., await this.usersService.update(userId, { refreshToken: null });
+      // remove stored refresh tokens for the user to revoke sessions
+      await this.usersService.setCurrentRefreshToken(null, userId);
 
       return { message: 'Logged out successfully' };
     }

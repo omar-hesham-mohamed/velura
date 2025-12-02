@@ -20,6 +20,30 @@ export class UsersService {
     });
   }
 
+  /**
+   * Store a single current refresh token for the user.
+   * If hashedToken is null, remove any refresh tokens for the user (logout/revoke).
+   */
+  async setCurrentRefreshToken(hashedToken: string | null, userId: number, expiresAt?: Date) {
+    // remove existing tokens for user
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+
+    if (!hashedToken) return null;
+
+    return this.prisma.refreshToken.create({
+      data: {
+        token: hashedToken,
+        userId,
+        expiresAt: expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  // return all refresh token rows for a user
+  async findRefreshTokensByUser(userId: number) {
+    return this.prisma.refreshToken.findMany({ where: { userId } });
+  }
+
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
